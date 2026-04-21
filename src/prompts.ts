@@ -181,18 +181,52 @@ Now create the full implementation.`,
 
 ${CASCADEKIT_RULES}
 
-## Page Structure Required
+## CRITICAL: Composition Rules
 
-### ${pageName}Page.tsx
-- Compose existing components (Section, Card, Button, Text, Box)
-- Use layout utils for structure: \`d-flex\`, \`col-container\`, \`gap-*\`
-- Use mixin for responsive layouts
-- Import ${pageName}Page.css
+When composing components into pages, you MUST use CascadeKit tools instead of writing CSS:
 
-### ${pageName}Page.css
+### 1. Layout = Layout Utils (NOT CSS)
+\`\`\`tsx
+// \u2705 CORRECT
+<div className="d-flex ali-center jc-sb gap-2">
+<div className="col-container col-num-3 gap-3">
+<div className="d-flex dir-col gap-2">
+
+// \u274c WRONG — never write this in page CSS
+.${pageName}Page--header { display: flex; align-items: center; gap: 16px; }
+\`\`\`
+
+### 2. Spacing = Mixin or Gap (NOT CSS margin/padding)
+\`\`\`tsx
+// \u2705 CORRECT
+<Card mixin={{ p: 3, mt: 2 }}>
+<div className="d-flex dir-col gap-3">
+
+// \u274c WRONG — never write this in page CSS
+.${pageName}Page--root .Card--root { margin-bottom: 24px; }
+\`\`\`
+
+### 3. Dynamic States = ScopedStyle (NOT CSS classes)
+\`\`\`tsx
+// \u2705 CORRECT — per-instance dynamic state
+<Card scopedStyle={item.isActive ? {
+  borderLeft: '3px solid var(--color-primary)',
+  '&:hover': { transform: 'translateY(-2px)' },
+} : undefined}>
+
+// \u274c WRONG — don't create CSS classes for dynamic states
+.${pageName}Page--activeCard { border-left: 3px solid var(--color-primary); }
+\`\`\`
+
+### 4. Responsive = Mixin breakpoints (NOT media queries in page CSS)
+\`\`\`tsx
+<Card mixin={{ p: 3, smallScreen: { p: 1_5 } }}>
+\`\`\`
+
+## ${pageName}Page.css — Should Be MINIMAL
 - Use \`@layer pages { }\`
-- Page-specific compositions only
-- Override component styles via \`.${pageName}Page--root .Component--root { }\`
+- ONLY for things utils/mixin/scopedStyle can't handle (e.g., sidebar width)
+- If your page CSS is longer than ~20 lines, you're writing too much CSS
 
 Now create the full implementation.`,
             },

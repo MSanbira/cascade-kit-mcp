@@ -37,6 +37,12 @@ export const resources: Resource[] = [
     description: "Per-instance style overrides using CSS @scope - when to use, how it works, patterns and examples",
     mimeType: "text/markdown",
   },
+  {
+    uri: "cascadekit://docs/consumer-patterns",
+    name: "Consumer & Composition Patterns",
+    description: "CRITICAL: How to USE CascadeKit tools when composing components into features and pages. Covers when to use layout utils vs CSS, mixin as a consumer, and scopedStyle for dynamic states.",
+    mimeType: "text/markdown",
+  },
 ];
 
 const CORE_PRINCIPLES = `# CascadeKit Core Principles
@@ -55,9 +61,17 @@ All styles in explicit layers:
 - **component-overrides** — Modifiers, sizes, states, mixins
 - **user-overrides** — Consumer customizations (always wins)
 
-## 2. No Inline Styles
+## 2. No Inline Styles, No Unnecessary CSS
 Styles via classes, never inline \`style\` for layout/theming. Inline breaks cascade control.
 CSS variables in \`style\` are OK—they're inputs to class rules, not rules themselves.
+
+**Equally important:** Don't write CSS for things CascadeKit tools already handle:
+- **Layout (flex/grid)** → Use layout util classes (\`d-flex\`, \`col-container\`, \`gap-*\`, \`ali-*\`, \`jc-*\`)
+- **Spacing between composed elements** → Use \`mixin={{ mt: 2 }}\` or \`gap-*\` on parent
+- **Dynamic per-instance styles** → Use \`scopedStyle\` on container components
+- **Responsive changes** → Use \`mixin={{ smallScreen: { ... } }}\`
+
+If a utility or tool can do it, never write CSS for it.
 
 ## 3. Naming Convention
 Single \`--\` delimiter: \`.ComponentName--root\`, \`.ComponentName--variant\`, \`.ComponentName--element\`
@@ -337,6 +351,26 @@ export function ComponentName({
 3. Sizes/states go in \`component-overrides\` layer
 4. Always include \`mixin\` prop support
 5. Use \`classNames\` helper for class composition
+
+## Using Components (Consumer Side)
+
+When you USE these components, apply CascadeKit tools for layout and spacing:
+
+\\\`\\\`\\\`tsx
+// Layout with utils, spacing with mixin, dynamic state with scopedStyle
+<div className="d-flex dir-col gap-3">
+  <Card mixin={{ p: 3 }} scopedStyle={isHighlighted ? {
+    '--color-border': 'var(--color-primary)',
+  } : undefined}>
+    <div className="d-flex ali-center jc-sb gap-2">
+      <Text variant="h4">{title}</Text>
+      <Badge variant="success">Active</Badge>
+    </div>
+  </Card>
+</div>
+\\\`\\\`\\\`
+
+**Never write CSS for:** flex/grid layout (use utils), spacing between elements (use gap or mixin), dynamic per-instance styles (use scopedStyle).
 `;
 
 const SCOPED_STYLE = `# ScopedStyle — Per-Instance Style Overrides
@@ -603,6 +637,308 @@ ScopedStyle solves the "I need dynamic styles but inline breaks the cascade" pro
 4. Supporting nested selectors and pseudo-classes
 `;
 
+const CONSUMER_PATTERNS = `# Consumer & Composition Patterns
+
+## The Common Mistake
+
+AI agents (and developers) often apply CascadeKit conventions correctly when BUILDING components but revert to raw CSS when COMPOSING them into features and pages.
+
+\`\`\`tsx
+// ❌ WRONG: Writing CSS for layout in a feature
+// FeatureCard.css
+.FeatureCard--header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+// ✅ CORRECT: Use layout utils + mixin
+<div className="d-flex ali-center jc-sb gap-2">
+  <Text variant="h3">{title}</Text>
+  <Button variant="ghost">Edit</Button>
+</div>
+\`\`\`
+
+The rule is simple: **If a layout utility or mixin can do it, never write CSS for it.**
+
+---
+
+## Rule 1: Layout Utils Replace CSS Flex/Grid
+
+Every time you reach for \`display: flex\`, \`align-items\`, \`gap\`, etc. in CSS — STOP. Use layout util classes instead.
+
+### Before (wrong)
+\`\`\`css
+@layer pages {
+  .Dashboard--header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .Dashboard--grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .Dashboard--sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+\`\`\`
+
+### After (correct)
+\`\`\`tsx
+<div className="d-flex ali-center jc-sb gap-2">
+  {/* header content */}
+</div>
+
+<div className="col-container col-num-3 gap-3">
+  {/* grid items */}
+</div>
+
+<aside className="d-flex dir-col gap-1">
+  {/* sidebar content */}
+</aside>
+\`\`\`
+
+**Zero CSS needed for layout.** The layout utils handle flex, grid, alignment, and gap.
+
+### Decision: Layout Utils vs CSS
+
+| Need | Use | NOT |
+|------|-----|-----|
+| flex row | \`className="d-flex"\` | \`display: flex\` in CSS |
+| flex column | \`className="d-flex dir-col"\` | \`flex-direction: column\` in CSS |
+| center items | \`className="ali-center"\` | \`align-items: center\` in CSS |
+| space between | \`className="jc-sb"\` | \`justify-content: space-between\` in CSS |
+| gap | \`className="gap-2"\` | \`gap: 16px\` in CSS |
+| grid columns | \`className="col-container col-num-3"\` | \`grid-template-columns\` in CSS |
+| wrap | \`className="f-wrap"\` | \`flex-wrap: wrap\` in CSS |
+
+**When CSS IS appropriate for layout:**
+- Complex grid layouts that utils can't express (e.g., \`grid-template-areas\`)
+- Component-internal layout that's part of the component's identity (e.g., a Sidebar component's own width)
+
+---
+
+## Rule 2: Mixin Props for Spacing Between Composed Elements
+
+When you compose components together, spacing between them belongs on the \`mixin\` prop — NOT in CSS.
+
+### Before (wrong)
+\`\`\`css
+@layer pages {
+  .Dashboard--root .Card--root {
+    margin-bottom: 24px;
+  }
+  .Dashboard--root .Card--root:last-child {
+    margin-bottom: 0;
+  }
+}
+\`\`\`
+
+### After (correct)
+\`\`\`tsx
+<Card mixin={{ mb: 3 }}>
+  {/* card content */}
+</Card>
+\`\`\`
+
+Or better, use gap on the parent:
+\`\`\`tsx
+<div className="d-flex dir-col gap-3">
+  <Card>{/* card 1 */}</Card>
+  <Card>{/* card 2 */}</Card>
+  <Card>{/* card 3 */}</Card>
+</div>
+\`\`\`
+
+### When to Use Mixin vs Gap
+
+| Scenario | Use |
+|----------|-----|
+| Equal spacing between siblings | \`gap-*\` on parent |
+| One-off margin/padding on specific element | \`mixin={{ mt: 2 }}\` on that element |
+| Responsive spacing | \`mixin={{ p: 2, smallScreen: { p: 1 } }}\` |
+| Internal component padding | CSS in the component itself |
+
+### Mixin for Responsive Layouts
+\`\`\`tsx
+<Card mixin={{
+  p: 3,
+  smallScreen: { p: 1_5 },
+  bigScreen: { p: 4 }
+}}>
+  {/* Padding adapts to screen size */}
+</Card>
+
+<div 
+  className="d-flex gap-3"
+  {...getMixin({
+    flexDirection: 'row',
+    smallScreen: { flexDirection: 'column' }
+  })}
+>
+  {/* Row on desktop, column on mobile */}
+</div>
+\`\`\`
+
+---
+
+## Rule 3: ScopedStyle for Dynamic Per-Instance States
+
+When a composed component instance has dynamic visual state — use \`scopedStyle\`, not a CSS class.
+
+### Before (wrong)
+\`\`\`css
+/* Writing a CSS class for each visual state */
+@layer components {
+  .EntryCard--pinned {
+    border-left: 3px solid var(--color-primary);
+  }
+  .EntryCard--urgent {
+    border-left: 3px solid var(--color-error);
+  }
+  .EntryCard--hoverable:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+}
+\`\`\`
+
+### After (correct)
+\`\`\`tsx
+// Dynamic per-instance — scopedStyle
+<Card scopedStyle={entry.isPinned ? {
+  borderLeft: '3px solid var(--color-primary)',
+  '--color-border': 'var(--color-primary)',
+} : undefined}>
+
+// Dynamic color from data — scopedStyle
+<Card scopedStyle={{
+  '--color-primary': getCategoryColor(entry.category),
+}}>
+
+// Per-instance hover — scopedStyle
+<Card scopedStyle={isInteractive ? {
+  transition: 'transform var(--transition-base), box-shadow var(--transition-base)',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: 'var(--shadow-lg)',
+  },
+} : undefined}>
+\`\`\`
+
+### Decision: ScopedStyle vs CSS Class vs Variant
+
+| Situation | Use |
+|-----------|-----|
+| Visual state known at build time, finite set | **Variant** (\`variant="primary"\`) |
+| Visual state from data/props, per-instance | **ScopedStyle** |
+| Hover/focus effect specific to one instance | **ScopedStyle** |
+| Hover/focus effect for ALL instances of a component | **CSS class** in component |
+| Color from backend/CMS | **ScopedStyle** |
+| Static layout structure | **CSS class** |
+
+---
+
+## Rule 4: Page CSS Should Be Minimal
+
+If you're writing a page and the CSS file is longer than ~20 lines, you're probably doing something wrong.
+
+### What Page CSS SHOULD contain:
+- Page-specific compositions that can't be expressed with utils
+- Unique layout structures (e.g., sidebar + main with specific widths)
+- Page-level animation/transition definitions
+
+### What Page CSS should NOT contain:
+- \`display: flex\` → use layout utils
+- \`gap: ...\` → use layout utils
+- \`margin/padding\` → use mixin props
+- \`border-left: 3px solid ...\` based on state → use scopedStyle
+- Color overrides per instance → use scopedStyle
+
+### Example: Correct Page
+\`\`\`tsx
+// DashboardPage.tsx — almost no CSS needed!
+import './DashboardPage.css';
+
+export function DashboardPage({ entries, stats }) {
+  return (
+    <div className="d-flex gap-4">
+      <main className="d-flex dir-col gap-3" style={{ flex: 1 }}>
+        <div className="d-flex ali-center jc-sb gap-2">
+          <Text variant="h2">Dashboard</Text>
+          <Button variant="primary">New Entry</Button>
+        </div>
+
+        <div className="col-container col-num-3 gap-3">
+          {stats.map(stat => (
+            <Card key={stat.id} mixin={{ p: 2 }} scopedStyle={{
+              '--color-primary': stat.color,
+            }}>
+              <Text variant="h4">{stat.value}</Text>
+              <Text variant="body-sm">{stat.label}</Text>
+            </Card>
+          ))}
+        </div>
+
+        <div className="d-flex dir-col gap-2">
+          {entries.map(entry => (
+            <Card key={entry.id}
+              mixin={{ p: 2 }}
+              scopedStyle={entry.pinned ? {
+                borderLeft: '3px solid var(--color-primary)',
+                '&:hover': { transform: 'translateY(-1px)' },
+              } : {
+                '&:hover': { transform: 'translateY(-1px)' },
+              }}
+            >
+              <div className="d-flex ali-center jc-sb gap-2">
+                <Text>{entry.title}</Text>
+                <Badge variant={entry.status}>{entry.status}</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </main>
+
+      <aside className="DashboardPage--sidebar d-flex dir-col gap-2">
+        {/* sidebar content */}
+      </aside>
+    </div>
+  );
+}
+\`\`\`
+
+\`\`\`css
+/* DashboardPage.css — minimal! Only what utils can't do */
+@layer pages {
+  .DashboardPage--sidebar {
+    width: 280px;
+    flex-shrink: 0;
+  }
+}
+\`\`\`
+
+---
+
+## Quick Reference: "Should I write CSS for this?"
+
+1. **Is it flex/grid layout?** → Use layout utils (\`d-flex\`, \`col-container\`, etc.)
+2. **Is it spacing between elements?** → Use \`gap-*\` on parent or \`mixin={{ mt: 2 }}\`
+3. **Is it a dynamic visual state?** → Use \`scopedStyle\`
+4. **Is it a responsive change?** → Use \`mixin={{ smallScreen: { ... } }}\`
+5. **Is it component-internal structure?** → Write CSS in the component
+6. **Is it a unique page layout element (sidebar width, etc.)?** → Write CSS in \`@layer pages\`
+7. **Everything else?** → Probably a variant or token
+`;
+
 const resourceContents: Record<string, string> = {
   "cascadekit://docs/core-principles": CORE_PRINCIPLES,
   "cascadekit://docs/tokens": TOKENS,
@@ -610,6 +946,7 @@ const resourceContents: Record<string, string> = {
   "cascadekit://docs/mixin-props": MIXIN_PROPS,
   "cascadekit://docs/component-pattern": COMPONENT_PATTERN,
   "cascadekit://docs/scoped-style": SCOPED_STYLE,
+  "cascadekit://docs/consumer-patterns": CONSUMER_PATTERNS,
 };
 
 export function readResource(uri: string) {
